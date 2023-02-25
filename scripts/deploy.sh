@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # export AWS_PROFILE=<REPLACE WITH YOUR AWS PROFILE NAME> or alternatively follow instructions on https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html#getting_started_prerequisites
+export AWS_PROFILE=default
 
-cd ../amazon-msk-java-app-cdk || exit
+cd ../infra || exit
 echo "Deploying VpcStack..."
 cdk deploy VpcStack --require-approval never --verbose
 echo "Deploying DynamoDbStack..."
@@ -24,7 +25,7 @@ echo "Installing Maven project..."
 cd ../consumer || exit
 mvn clean install
 
-cd ../amazon-msk-java-app-cdk || exit
+cd ../infra || exit
 echo "Deploying FargateStack..."
 cdk deploy FargateStack --parameters FargateStack:bootstrapAddress="$kafka_brokers" --parameters FargateStack:topicName="$topicName" --require-approval never --verbose
 

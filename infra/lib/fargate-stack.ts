@@ -28,6 +28,7 @@ import {Effect} from "@aws-cdk/aws-iam";
 export class FargateStack extends cdk.Stack {
     private tableName = "Accounts";
     private groupId = "transaction-consumers";
+    private producerGroupId = "transactions-producers"
 
     constructor(vpcStack: VpcStack, scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
@@ -42,26 +43,39 @@ export class FargateStack extends cdk.Stack {
             description: "Kafka topic name"
         });
 
-        const image = new assets.DockerImageAsset(this, "ConsumerImage", {
-            directory: '../consumer/docker'
+        const consumerImage = new assets.DockerImageAsset(this, "ConsumerImage", {
+            directory: "../consumer/docker",
+            buildArgs : {"--platform" : "linux/amd64"}
         });
 
-        const fargateTaskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
+        const producerImage = new assets.DockerImageAsset( this, "ProducerImage", {
+            directory: '../producer/',
+            buildArgs : {"--platform" : "linux/amd64"}
+        });
+
+        const consumerTaskDefinition = new ecs.FargateTaskDefinition(this, 'ConsumerTaskDef', {
             memoryLimitMiB: 4096,
             cpu: 512
+        });
+
+        const producerTaskDefinition = new ecs.FargateTaskDefinition( this, 'ProducerTaskDef', {
+            memoryLimitMiB: 4096,
+            cpu: 512  
         });
 
         const cluster = new ecs.Cluster(this, 'Cluster', {
             vpc: vpcStack.vpc
         });
 
+        /*
         cluster.addCapacity('DefaultAutoScalingGroupCapacity', {
             instanceType: ec2.InstanceType.of(InstanceClass.T3, InstanceSize.MEDIUM),//new ec2.InstanceType("t2.xlarge"),
             desiredCapacity: 1,
         });
-
-        fargateTaskDefinition.addContainer("KafkaConsumer", {
-            image: ecs.ContainerImage.fromDockerImageAsset(image),
+        */
+       
+        consumerTaskDefinition.addContainer("KafkaConsumer", {
+            image: ecs.ContainerImage.fromDockerImageAsset(consumerImage),
             logging: ecs.LogDrivers.awsLogs({streamPrefix: 'KafkaConsumer'}),
             environment: {
                 'TABLE_NAME': this.tableName,
@@ -72,23 +86,47 @@ export class FargateStack extends cdk.Stack {
             }
         });
 
+        producerTaskDefinition.addContainer("KafkaProducer", {
+            image: ecs.ContainerImage.fromDockerImageAsset(producerImage),
+            logging: ecs.LogDrivers.awsLogs({streamPrefix: 'KafkaProdcuer'}),
+            environment: {
+                'GROUP_ID': this.producerGroupId,
+                'BOOTSTRAP_ADDRESS': bootstrapAddress.valueAsString,
+                'REGION': this.region,
+                'TOPIC_NAME': topicName.valueAsString
+            }
+        });
+
         //TODO: harden security
-        fargateTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
+        consumerTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
                 effect: Effect.ALLOW,
                 actions: ["kafka:*"],
                 resources: ["*"]
             }
         ));
-        fargateTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
+        producerTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
+            effect: Effect.ALLOW,
+            actions: ["kafka:*"],
+            resources: ["*"]
+        }));
+
+        consumerTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
             effect: Effect.ALLOW,
             actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
             resources: ["*"]
         }));
 
-        const service = new ecs.FargateService(this, 'Service', {
+        const consumerService = new ecs.FargateService(this, 'ConsumerService', {
             cluster: cluster,
             securityGroups: [vpcStack.fargateSercurityGroup],
-            taskDefinition: fargateTaskDefinition,
+            taskDefinition: consumerTaskDefinition,
+            desiredCount: 1
+        });
+
+        const producerService = new ecs.FargateService(this, 'ProducerService', {
+            cluster: cluster,
+            securityGroups: [vpcStack.fargateSercurityGroup],
+            taskDefinition: producerTaskDefinition,
             desiredCount: 1
         });
     }

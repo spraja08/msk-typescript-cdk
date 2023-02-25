@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # export AWS_PROFILE=<REPLACE WITH YOUR AWS PROFILE NAME> or alternatively follow instructions on https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html#getting_started_prerequisites
 
-cd ../amazon-msk-java-app-cdk || exit
+cd ../infra || exit
 
 echo "Destroying FargateStack..."
 cdk destroy FargateStack --force --verbose
