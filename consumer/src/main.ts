@@ -1,14 +1,18 @@
 import { Kafka } from "kafkajs";
 
+const TOPIC = process.env.TOPIC_NAME;
+const BROKERS = process.env.BOOTSTRAP_ADDRESS?.split(',')
+
 const kafka = new Kafka({
-  clientId: "test-app",
-  brokers: ["b-2.transactionskafkaclust.5gnbas.c2.kafka.us-west-2.amazonaws.com:9094","b-1.transactionskafkaclust.5gnbas.c2.kafka.us-west-2.amazonaws.com:9094"],
+  clientId: "consumer-app",
+  brokers: BROKERS,
+  ssl: true
 });
 
-const consumer = kafka.consumer({ groupId: "test-group" });
+const consumer = kafka.consumer({ groupId: "consumer-group" });
 const run = async () => {
   await consumer.connect();
-  await consumer.subscribe({ topic: "transactions", fromBeginning: true });
+  await consumer.subscribe({ topic: TOPIC, fromBeginning: true });
 
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {

@@ -44,23 +44,13 @@ export class FargateStack extends cdk.Stack {
         });
 
         const consumerImage = new assets.DockerImageAsset(this, "ConsumerImage", {
-            directory: "../consumer/docker",
-            buildArgs : {"--platform" : "linux/amd64"}
-        });
-
-        const producerImage = new assets.DockerImageAsset( this, "ProducerImage", {
-            directory: '../producer/',
+            directory: "../consumer/",
             buildArgs : {"--platform" : "linux/amd64"}
         });
 
         const consumerTaskDefinition = new ecs.FargateTaskDefinition(this, 'ConsumerTaskDef', {
             memoryLimitMiB: 4096,
             cpu: 512
-        });
-
-        const producerTaskDefinition = new ecs.FargateTaskDefinition( this, 'ProducerTaskDef', {
-            memoryLimitMiB: 4096,
-            cpu: 512  
         });
 
         const cluster = new ecs.Cluster(this, 'Cluster', {
@@ -78,19 +68,7 @@ export class FargateStack extends cdk.Stack {
             image: ecs.ContainerImage.fromDockerImageAsset(consumerImage),
             logging: ecs.LogDrivers.awsLogs({streamPrefix: 'KafkaConsumer'}),
             environment: {
-                'TABLE_NAME': this.tableName,
                 'GROUP_ID': this.groupId,
-                'BOOTSTRAP_ADDRESS': bootstrapAddress.valueAsString,
-                'REGION': this.region,
-                'TOPIC_NAME': topicName.valueAsString
-            }
-        });
-
-        producerTaskDefinition.addContainer("KafkaProducer", {
-            image: ecs.ContainerImage.fromDockerImageAsset(producerImage),
-            logging: ecs.LogDrivers.awsLogs({streamPrefix: 'KafkaProdcuer'}),
-            environment: {
-                'GROUP_ID': this.producerGroupId,
                 'BOOTSTRAP_ADDRESS': bootstrapAddress.valueAsString,
                 'REGION': this.region,
                 'TOPIC_NAME': topicName.valueAsString
@@ -104,29 +82,11 @@ export class FargateStack extends cdk.Stack {
                 resources: ["*"]
             }
         ));
-        producerTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
-            effect: Effect.ALLOW,
-            actions: ["kafka:*"],
-            resources: ["*"]
-        }));
-
-        consumerTaskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
-            effect: Effect.ALLOW,
-            actions: ["dynamodb:GetItem", "dynamodb:UpdateItem"],
-            resources: ["*"]
-        }));
 
         const consumerService = new ecs.FargateService(this, 'ConsumerService', {
             cluster: cluster,
             securityGroups: [vpcStack.fargateSercurityGroup],
             taskDefinition: consumerTaskDefinition,
-            desiredCount: 1
-        });
-
-        const producerService = new ecs.FargateService(this, 'ProducerService', {
-            cluster: cluster,
-            securityGroups: [vpcStack.fargateSercurityGroup],
-            taskDefinition: producerTaskDefinition,
             desiredCount: 1
         });
     }
